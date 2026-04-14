@@ -4,77 +4,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UroLog Pro - Dr. Kunal Borade</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; --danger: #d93025; --success: #188038; }
-        body { font-family: 'Google Sans', Arial, sans-serif; background: var(--bg); margin: 0; padding-bottom: 80px; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Google Sans', Arial, sans-serif; background: var(--bg); margin: 0; padding-bottom: 80px; }
         .blue-header { background: var(--primary); color: white; padding: 25px 15px; border-radius: 0 0 20px 20px; position: sticky; top: 0; z-index: 100; }
-        .sync-bar { position: fixed; top: 0; left: 0; width: 100%; height: 4px; z-index: 1000; display: none; }
-        .sync-active { display: block; background: #fb0; animation: progress 2s infinite; }
-        @keyframes progress { 0% { width: 0; } 100% { width: 100%; } }
-        
         .card { background: white; margin: 12px; padding: 15px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-        .input-box { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
-        .btn-main { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        
+        .input-box { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; }
+        .btn-main { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; }
         .pt-card { background: white; margin: 10px 12px; padding: 15px; border-radius: 10px; border-left: 5px solid #ccc; position: relative; }
         .pt-card.pending { border-left-color: var(--danger); }
         .pt-card.paid { border-left-color: var(--success); }
-        .wa-btn { background: #25D366; color: white; border: none; padding: 5px 10px; border-radius: 15px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
+        .wa-btn { background: #25D366; color: white; border: none; padding: 5px 10px; border-radius: 15px; font-size: 12px; text-decoration: none; margin-left: 8px; }
+        #sync-bar { position: fixed; top: 0; left: 0; width: 0%; height: 4px; background: #34a853; transition: 0.3s; z-index: 1001; }
     </style>
 </head>
 <body>
 
-<div id="sync-progress" class="sync-bar"></div>
+<div id="sync-bar"></div>
 
 <div class="blue-header">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div><strong>Dr. Kunal Borade</strong><br><small id="cloud-status">Offline Mode</small></div>
+        <div><strong>Dr. Kunal Borade</strong><br><small id="status">Cloud Ready</small></div>
         <div>
-            <button onclick="showSyncSettings()" style="background:none; border:none; color:white; font-size:20px;">☁️</button>
-            <button onclick="doSync()" style="background:none; border:none; color:white; font-size:20px; margin-left:15px;">🔄</button>
+            <button onclick="setCloudUrl()" style="background:none; border:none; color:white; font-size:20px;">☁️</button>
+            <button onclick="syncNow()" style="background:none; border:none; color:white; font-size:20px; margin-left:15px;">🔄</button>
         </div>
     </div>
-    <input type="text" id="search" class="input-box" placeholder="🔍 Search Patients..." onkeyup="render()" style="margin-top:15px; margin-bottom:0; border:none;">
+    <input type="text" id="search" class="input-box" placeholder="🔍 Search patients..." onkeyup="render()" style="margin-top:15px; border:none;">
 </div>
 
-<div class="card" id="form-container">
-    <h3 id="form-title">Add Patient</h3>
+<div class="card">
     <input type="hidden" id="edit-id">
-    <input type="text" id="name" class="input-box" placeholder="Name *">
+    <input type="text" id="name" class="input-box" placeholder="Patient Name *">
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
         <input type="number" id="age" class="input-box" placeholder="Age">
-        <select id="sex" class="input-box">
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-        </select>
+        <select id="sex" class="input-box"><option>Male</option><option>Female</option></select>
     </div>
-    <input type="tel" id="mobile" class="input-box" placeholder="Mobile Number">
     <input type="text" id="diag" class="input-box" placeholder="Diagnosis">
     <input type="text" id="surgery" class="input-box" placeholder="Surgery">
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <input type="text" id="d1" class="input-box" placeholder="Surg Date (DD/MM/YY)" oninput="autoDate(this)">
-        <input type="text" id="d2" class="input-box" placeholder="Stent Date (DD/MM/YY)" oninput="autoDate(this)">
-    </div>
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
         <input type="number" id="said" class="input-box" placeholder="Amount Said" oninput="calc()">
-        <input type="number" id="rec" class="input-box" placeholder="Amount Received" oninput="calc()">
+        <input type="number" id="rec" class="input-box" placeholder="Received" oninput="calc()">
     </div>
     <input type="number" id="pend" class="input-box" placeholder="Pending" readonly style="background:#eee">
-    <button class="btn-main" onclick="savePatient()">💾 SAVE RECORD</button>
+    <button class="btn-main" onclick="save()">💾 SAVE RECORD</button>
 </div>
 
 <div id="list"></div>
 
 <script>
     let patients = JSON.parse(localStorage.getItem('uro_data') || '[]');
-    let config = JSON.parse(localStorage.getItem('uro_config') || '{"url":""}');
-
-    function autoDate(i) {
-        let v = i.value.replace(/\D/g,'');
-        if(v.length > 4) i.value = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4,6);
-        else if(v.length > 2) i.value = v.slice(0,2)+'/'+v.slice(2);
-    }
+    let cloudUrl = localStorage.getItem('uro_url') || '';
 
     function calc() {
         let s = Number(document.getElementById('said').value) || 0;
@@ -82,143 +62,75 @@
         document.getElementById('pend').value = s - r;
     }
 
-    function savePatient() {
-        const id = document.getElementById('edit-id').value || Date.now().toString();
-        const p = {
-            id: id,
+    function save() {
+        let p = {
+            id: document.getElementById('edit-id').value || Date.now().toString(),
             name: document.getElementById('name').value,
             age: document.getElementById('age').value,
             sex: document.getElementById('sex').value,
-            mobile: document.getElementById('mobile').value,
             diag: document.getElementById('diag').value,
             surgery: document.getElementById('surgery').value,
-            d1: document.getElementById('d1').value,
-            d2: document.getElementById('d2').value,
-            said: Number(document.getElementById('said').value),
-            rec: Number(document.getElementById('rec').value),
-            pend: Number(document.getElementById('pend').value),
+            said: document.getElementById('said').value,
+            rec: document.getElementById('rec').value,
+            pend: document.getElementById('pend').value,
             ts: new Date().toISOString()
         };
-
-        if(!p.name) return alert("Please enter name");
-
-        const index = patients.findIndex(x => x.id === id);
-        if(index > -1) patients[index] = p;
-        else patients.unshift(p);
-
+        if(!p.name) return alert("Name required");
+        let idx = patients.findIndex(x => x.id === p.id);
+        if(idx > -1) patients[idx] = p; else patients.unshift(p);
         localStorage.setItem('uro_data', JSON.stringify(patients));
-        resetForm();
         render();
-        if(config.url) cloudAction('save', p);
+        if(cloudUrl) cloudRequest('save', p);
     }
 
-    function render() {
-        const q = document.getElementById('search').value.toLowerCase();
-        const html = patients.filter(p => p.name.toLowerCase().includes(q)).map(p => `
-            <div class="pt-card ${p.pend > 0 ? 'pending' : 'paid'}">
-                <strong>${p.name}</strong> (${p.age}${p.sex[0]})
-                <button onclick="openWA('${p.mobile}', '${p.name}')" class="wa-btn">WhatsApp</button>
-                <div style="font-size:13px; color:#666; margin-top:5px;">
-                    ${p.diag} | ${p.surgery}<br>
-                    Surg: ${p.d1} | Stent: <b>${p.d2 || 'N/A'}</b>
-                </div>
-                <div style="margin-top:8px; font-weight:bold; color:${p.pend > 0 ? 'red' : 'green'}">
-                    Pend: ₹${p.pend}
-                </div>
-                <div style="margin-top:10px;">
-                    <button onclick="editPt('${p.id}')" style="border:none; background:#eee; padding:5px 10px; border-radius:4px;">✏️ Edit</button>
-                    <button onclick="deletePt('${p.id}')" style="border:none; background:#fee; color:red; padding:5px 10px; border-radius:4px; margin-left:10px;">🗑️ Delete</button>
-                </div>
-            </div>
-        `).join('');
-        document.getElementById('list').innerHTML = html;
-    }
-
-    function editPt(id) {
-        const p = patients.find(x => x.id === id);
-        document.getElementById('edit-id').value = p.id;
-        document.getElementById('name').value = p.name;
-        document.getElementById('age').value = p.age;
-        document.getElementById('sex').value = p.sex;
-        document.getElementById('mobile').value = p.mobile;
-        document.getElementById('diag').value = p.diag;
-        document.getElementById('surgery').value = p.surgery;
-        document.getElementById('d1').value = p.d1;
-        document.getElementById('d2').value = p.d2;
-        document.getElementById('said').value = p.said;
-        document.getElementById('rec').value = p.rec;
-        document.getElementById('pend').value = p.pend;
-        document.getElementById('form-title').innerText = "Edit Patient";
-        window.scrollTo(0,0);
-    }
-
-    async function cloudAction(action, data) {
-        if(!config.url) return;
-        const params = new URLSearchParams({ action: action, ...data });
-        // Using JSONP style Script injection to bypass CORS
-        const script = document.createElement('script');
-        script.src = `${config.url}?${params.toString()}&callback=onCloudSuccess`;
+    function cloudRequest(action, data) {
+        let params = new URLSearchParams({action, ...data});
+        let script = document.createElement('script');
+        script.src = `${cloudUrl}?${params.toString()}&callback=cloudCallback`;
         document.body.appendChild(script);
     }
 
-    window.onCloudSuccess = (res) => { console.log("Cloud Action Success", res); };
-
-    async function doSync() {
-        if(!config.url) return alert("Set App Script URL first (Cloud Icon)");
-        document.getElementById('sync-progress').classList.add('sync-active');
-        
-        const script = document.createElement('script');
-        script.src = `${config.url}?action=fetch&callback=onSyncComplete`;
-        document.body.appendChild(script);
-    }
-
-    window.onSyncComplete = (res) => {
-        document.getElementById('sync-progress').classList.remove('sync-active');
-        if(res.ok && res.data) {
-            // Merge logic: prefer newer timestamps
-            const cloudData = res.data;
-            let merged = [...patients];
-            cloudData.forEach(cp => {
-                const i = merged.findIndex(lp => lp.id === cp.id);
-                if(i === -1) merged.push(cp);
-                else if(new Date(cp.ts) > new Date(merged[i].ts)) merged[i] = cp;
-            });
-            patients = merged.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+    window.cloudCallback = (res) => {
+        document.getElementById('sync-bar').style.width = '0%';
+        if(res.data) {
+            patients = res.data;
             localStorage.setItem('uro_data', JSON.stringify(patients));
             render();
-            alert("Sync Complete!");
         }
     };
 
-    function showSyncSettings() {
-        const url = prompt("Enter Google Apps Script URL:", config.url);
-        if(url !== null) {
-            config.url = url;
-            localStorage.setItem('uro_config', JSON.stringify(config));
-            location.reload();
-        }
+    function syncNow() {
+        if(!cloudUrl) return alert("Set Cloud URL");
+        document.getElementById('sync-bar').style.width = '100%';
+        cloudRequest('fetch', {});
     }
 
-    function openWA(num, name) {
-        if(!num) return alert("No number saved");
-        const msg = `Hello ${name}, this is a reminder from Dr. Kunal regarding your follow-up.`;
-        window.open(`https://api.whatsapp.com/send?phone=91${num.replace(/\D/g,'')}&text=${encodeURIComponent(msg)}`);
+    function setCloudUrl() {
+        let url = prompt("Paste Apps Script URL:", cloudUrl);
+        if(url) { localStorage.setItem('uro_url', url); cloudUrl = url; location.reload(); }
     }
 
-    function resetForm() {
-        document.getElementById('edit-id').value = '';
-        document.querySelectorAll('.input-box').forEach(i => i.value = '');
-        document.getElementById('sex').value = 'Male';
-        document.getElementById('form-title').innerText = "Add Patient";
+    function render() {
+        let q = document.getElementById('search').value.toLowerCase();
+        document.getElementById('list').innerHTML = patients.filter(p => p.name.toLowerCase().includes(q)).map(p => `
+            <div class="pt-card ${p.pend > 0 ? 'pending' : 'paid'}">
+                <strong>${p.name}</strong> (${p.age}${p.sex[0]})
+                <div style="font-size:13px; color:#666;">${p.diag} | ${p.surgery}</div>
+                <div style="font-weight:bold; color:${p.pend > 0 ? 'red' : 'green'}">Pending: ₹${p.pend}</div>
+                <button onclick="editPt('${p.id}')" style="margin-top:10px; border:none; background:#eee; padding:5px 10px; border-radius:5px;">Edit</button>
+            </div>
+        `).join('');
     }
 
-    function deletePt(id) {
-        if(confirm("Delete this record?")) {
-            patients = patients.filter(x => x.id !== id);
-            localStorage.setItem('uro_data', JSON.stringify(patients));
-            render();
-            if(config.url) cloudAction('delete', {id: id});
-        }
+    function editPt(id) {
+        let p = patients.find(x => x.id === id);
+        document.getElementById('edit-id').value = p.id;
+        document.getElementById('name').value = p.name;
+        document.getElementById('age').value = p.age;
+        document.getElementById('said').value = p.said;
+        document.getElementById('rec').value = p.rec;
+        document.getElementById('pend').value = p.pend;
+        window.scrollTo(0,0);
     }
 
     render();
