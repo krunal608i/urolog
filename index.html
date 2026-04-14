@@ -1052,51 +1052,45 @@ function mergeAndSave(cloudData) {
 }
 
 // Push all local patients up to cloud
-async function pushLocalToCloud(localList) {
+function pushLocalToCloud(localList) {
   if(!apiUrl) return;
   const list = localList || JSON.parse(localStorage.getItem('urolog_data') || '[]');
   if(!list.length) return;
-  let pushed = 0;
-  for(const p of list) {
-    try {
-      await fetch(apiUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({action:'save',...p})
-      });
-      pushed++;
-    } catch(e) {}
-  }
-  if(pushed > 0) {
-    setSyncBar('ok','✅ ' + pushed + ' records saved to Google Sheet!');
-    showToast('✅ ' + pushed + ' records now in cloud!');
-  }
+  // Send each patient via JSONP GET — staggered to avoid overload
+  list.forEach((p, i) => {
+    setTimeout(() => {
+      const data = encodeURIComponent(JSON.stringify({action:'save',...p}));
+      const s = document.createElement('script');
+      s.src = apiUrl + '?action=save&data=' + data + '&t=' + Date.now();
+      s.onload = () => s.remove();
+      s.onerror = () => s.remove();
+      document.body.appendChild(s);
+    }, i * 400);
+  });
+  setTimeout(() => {
+    setSyncBar('ok','✅ ' + list.length + ' records pushed to Google Sheet!');
+    showToast('✅ ' + list.length + ' records saved to cloud!');
+  }, list.length * 400 + 500);
 }
 
-async function cloudSave(p) {
+function cloudSave(p) {
   if(!apiUrl) return;
-  try {
-    // no-cors POST — fire and forget (Google Sheet saves it)
-    await fetch(apiUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({action:'save',...p})
-    });
-  } catch(e) {}
+  // Use JSONP GET — most reliable from any browser/local file
+  const data = encodeURIComponent(JSON.stringify({action:'save',...p}));
+  const s = document.createElement('script');
+  s.src = apiUrl + '?action=save&data=' + data + '&t=' + Date.now();
+  s.onload = () => s.remove();
+  s.onerror = () => s.remove();
+  document.body.appendChild(s);
 }
 
-async function cloudDelete(id) {
+function cloudDelete(id) {
   if(!apiUrl) return;
-  try {
-    await fetch(apiUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({action:'delete',id})
-    });
-  } catch(e) {}
+  const s = document.createElement('script');
+  s.src = apiUrl + '?action=delete&id=' + id + '&t=' + Date.now();
+  s.onload = () => s.remove();
+  s.onerror = () => s.remove();
+  document.body.appendChild(s);
 }
 
 function setSyncBar(type, msg) {
