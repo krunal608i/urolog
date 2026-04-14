@@ -973,74 +973,40 @@ function saveLocal() {
 }
 
 // ══════════════════════════════════════════════
-//  SYNC  (JSONP — works from local file, bypasses CORS)
+//  SYNC — pure fetch, works on GitHub Pages HTTPS
 // ══════════════════════════════════════════════
 async function doSync() {
   if(!apiUrl) { showToast('Setup cloud sync first'); openSetup(); return; }
   setSyncBar('loading','⏳ Syncing with Google Sheet...');
-
-  // METHOD 1: fetch (works on HTTPS pages like GitHub Pages)
   try {
-    const res = await fetch(apiUrl + '?t=' + Date.now(), { method:'GET', mode:'cors' });
+    const res = await fetch(apiUrl + '?t=' + Date.now());
     const json = await res.json();
     if(json.ok && Array.isArray(json.data)) {
       mergeAndSave(json.data);
-      return;
-    }
-  } catch(e) {}
-
-  // METHOD 2: JSONP fallback
-  const oldTag = document.getElementById('jsonp-sync');
-  if(oldTag) oldTag.remove();
-
-  const timer = setTimeout(() => {
-    setSyncBar('error','❌ Could not reach Google Sheet — check URL');
-    showToast('Sync timed out. Check your URL.');
-    renderAll();
-  }, 8000);
-
-  window.__urологCallback = function(json) {
-    clearTimeout(timer);
-    if(json.ok && Array.isArray(json.data)) {
-      mergeAndSave(json.data);
     } else {
-      setSyncBar('error','❌ Sync error — redeploy Apps Script');
-      showToast('Sync error. Try redeploying Apps Script.');
-      renderAll();
+      throw new Error('bad response');
     }
-  };
-
-  const s = document.createElement('script');
-  s.id = 'jsonp-sync';
-  s.onerror = function() {
-    clearTimeout(timer);
-    setSyncBar('error','❌ Could not reach Google Sheet');
-    showToast('Cannot reach Google Sheet. Check internet & URL.');
+  } catch(e) {
+    setSyncBar('error','❌ Sync failed: ' + e.message);
+    showToast('Sync failed. Check URL in ☁️');
     renderAll();
-  };
-  s.src = apiUrl + '?callback=__urологCallback&t=' + Date.now();
-  document.body.appendChild(s);
+  }
 }
 
-// Merge cloud data with local — never lose local-only records
+// Merge cloud with local — NEVER lose local records
 function mergeAndSave(cloudData) {
-  // Always read freshest local copy directly from storage
   const local = JSON.parse(localStorage.getItem('urolog_data') || '[]');
-
-  // SAFETY RULE: If cloud has fewer records than local,
-  // cloud is empty or behind — NEVER wipe local data.
-  // Instead keep local and push it up to cloud.
+  // If cloud is empty/behind, protect local and push up
   if(cloudData.length < local.length) {
     patients = local;
     saveLocal();
-    setSyncBar('ok','⬆️ Cloud was empty — pushing your ' + local.length + ' records up...');
-    showToast('⬆️ Uploading your records to Google Sheet...');
+    setSyncBar('ok','⬆️ Pushing ' + local.length + ' records to cloud...');
+    showToast('⬆️ Uploading records to Google Sheet...');
     renderAll();
     pushLocalToCloud(local);
     return;
   }
-
-  // Normal merge: cloud is authoritative, but keep any local-only records
+  // Merge: keep cloud records + any local-only ones not in cloud
   const cloudIds = new Set(cloudData.map(p => String(p.id)));
   const localOnly = local.filter(p => !cloudIds.has(String(p.id)));
   patients = [...cloudData, ...localOnly].filter(p => p.id && p.name);
@@ -1051,46 +1017,36 @@ function mergeAndSave(cloudData) {
   renderAll();
 }
 
-// Push all local patients up to cloud
-function pushLocalToCloud(localList) {
+// Push local records to cloud one by one
+async function pushLocalToCloud(localList) {
   if(!apiUrl) return;
   const list = localList || JSON.parse(localStorage.getItem('urolog_data') || '[]');
   if(!list.length) return;
-  // Send each patient via JSONP GET — staggered to avoid overload
-  list.forEach((p, i) => {
-    setTimeout(() => {
-      const data = encodeURIComponent(JSON.stringify({action:'save',...p}));
-      const s = document.createElement('script');
-      s.src = apiUrl + '?action=save&data=' + data + '&t=' + Date.now();
-      s.onload = () => s.remove();
-      s.onerror = () => s.remove();
-      document.body.appendChild(s);
-    }, i * 400);
-  });
-  setTimeout(() => {
-    setSyncBar('ok','✅ ' + list.length + ' records pushed to Google Sheet!');
-    showToast('✅ ' + list.length + ' records saved to cloud!');
-  }, list.length * 400 + 500);
+  let ok = 0;
+  for(const p of list) {
+    try {
+      await fetch(apiUrl + '?action=save&data=' + encodeURIComponent(JSON.stringify({action:'save',...p})) + '&t=' + Date.now());
+      ok++;
+    } catch(e) {}
+  }
+  setSyncBar('ok','✅ ' + ok + '/' + list.length + ' records saved to Google Sheet!');
+  showToast('✅ ' + ok + ' records now in cloud!');
 }
 
-function cloudSave(p) {
+// Save single patient to cloud
+async function cloudSave(p) {
   if(!apiUrl) return;
-  // Use JSONP GET — most reliable from any browser/local file
-  const data = encodeURIComponent(JSON.stringify({action:'save',...p}));
-  const s = document.createElement('script');
-  s.src = apiUrl + '?action=save&data=' + data + '&t=' + Date.now();
-  s.onload = () => s.remove();
-  s.onerror = () => s.remove();
-  document.body.appendChild(s);
+  try {
+    await fetch(apiUrl + '?action=save&data=' + encodeURIComponent(JSON.stringify({action:'save',...p})) + '&t=' + Date.now());
+  } catch(e) {}
 }
 
-function cloudDelete(id) {
+// Delete patient from cloud
+async function cloudDelete(id) {
   if(!apiUrl) return;
-  const s = document.createElement('script');
-  s.src = apiUrl + '?action=delete&id=' + id + '&t=' + Date.now();
-  s.onload = () => s.remove();
-  s.onerror = () => s.remove();
-  document.body.appendChild(s);
+  try {
+    await fetch(apiUrl + '?action=delete&id=' + id + '&t=' + Date.now());
+  } catch(e) {}
 }
 
 function setSyncBar(type, msg) {
